@@ -85,9 +85,3 @@ bioai/
 ```
 
 ---
-
-## 🤝 Contributing
-Contributions are welcome! If you're planning to integrate vector databases (PostgreSQL/pgvector), LangGraph agents, or specialized biology tools, please ensure that you follow the established asynchronous design patterns in the backend and modular hooks in the frontend.
-
-## 📝 License
-This project is licensed under the MIT License.
