@@ -7,8 +7,8 @@ from schemas.chatModel import ChatMessage
 
 
 class Conversation(BaseModel):
+    id:str
     userId: int
-
     title: str
     messages: List[ChatMessage]
 
