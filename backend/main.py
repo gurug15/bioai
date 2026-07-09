@@ -1,9 +1,11 @@
+from dotenv import load_dotenv
 from fastapi import FastAPI
 import uvicorn
 
 from api.router import api_router
 from exceptions.customException import ConversationNotFound, LLMServiceError
 from exceptions.handlers import conversation_not_found_handler, generic_exception_handler, llm_service_error_handler
+
 
 
 
