@@ -5,8 +5,8 @@ import {
   sendMessage as sendApiMessage,
   createConversation as createApiConversation,
   getAllConversations,
-} from "../lib/api";
-import type { ChatMessage, Conversation } from "../lib/api";
+} from "@/lib/api/chatApi";
+import type { ChatMessage, Conversation } from "@/lib/api/chatApi";
 
 export function useChat(conversationId: string | null) {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(conversationId);

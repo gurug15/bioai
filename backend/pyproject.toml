@@ -6,10 +6,13 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.18.5",
+    "bcrypt>=5.0.0",
     "fastapi>=0.139.0",
-    "passlib[bcrypt]>=1.7.4",
+    "jwt>=1.4.0",
     "psycopg2-binary>=2.9.12",
+    "pydantic[email]>=2.13.4",
     "python-dotenv>=1.2.2",
+    "python-jose[cryptography]>=3.5.0",
     "sqlalchemy>=2.0.51",
     "uvicorn>=0.50.2",
 ]

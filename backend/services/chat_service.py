@@ -1,53 +1,29 @@
 """
-Chat service — owns the in-memory store and all business logic.
+Chat service — PostgreSQL-backed, per-user isolated business logic.
 
-The router layer should never touch the conversations dict directly;
-it always goes through these functions.
+All functions accept a `db: Session` and `user_id: UUID` so that
+no conversation is ever visible to another user.
 """
 
-from uuid import UUID, uuid4
+from uuid import UUID
 
+from sqlalchemy.orm import Session
+
+from database.models import Conversation as ConversationModel
+from database.models import Message as MessageModel
 from exceptions.customException import ConversationNotFound
 from schemas.chatModel import ChatMessage, ChatResponse
-from schemas.conversationModel import Conversation
-
-
-# ---------------------------------------------------------------------------
-# In-memory store
-# ---------------------------------------------------------------------------
-
-# Placeholder user UUID until authentication is implemented
-_DEFAULT_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
-
-# string(UUID) → Conversation
-_conversations: dict[str, Conversation] = {}
-
-# Seed one conversation on startup so the UI has something to load
-_seed_id = uuid4()
-_conversations[str(_seed_id)] = Conversation(
-    id=_seed_id,
-    user_id=_DEFAULT_USER_ID,
-    title="New Chat",
-    messages=[],
-)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _get_or_raise(conversation_id: str) -> Conversation:
-    """Return the conversation or raise ConversationNotFound."""
-    conv = _conversations.get(conversation_id)
-    if conv is None:
-        raise ConversationNotFound(conversation_id)
-    return conv
-
-
-def _auto_title(conv: Conversation, first_message: str) -> None:
+def _auto_title(conv: ConversationModel, first_message: str, db: Session) -> None:
     """Set the conversation title from the first user message."""
-    if conv.title == "New Chat" and len(conv.messages) == 1:
+    if conv.title == "New Chat":
         conv.title = first_message[:60]
+        db.commit()
 
 
 def _build_reply(message: str) -> str:
@@ -62,72 +38,108 @@ def _build_reply(message: str) -> str:
 # Service functions (called by the router)
 # ---------------------------------------------------------------------------
 
-def get_messages(conversation_id: str) -> list[ChatMessage]:
-    """Return all messages for a conversation."""
-    conv = _get_or_raise(conversation_id)
-    return conv.messages
-
-
-def create_conversation() -> Conversation:
+def create_conversation(user_id: UUID, db: Session) -> ConversationModel:
     """
-    Create a new empty conversation.
-    If an untitled 'New Chat' already exists, return that instead of
-    creating a duplicate.
+    Return an existing untitled 'New Chat' for this user, or create a new one.
+    Never creates duplicates for the same user.
     """
-    existing = next(
-        (c for c in _conversations.values() if c.title == "New Chat"),
-        None,
+    existing = (
+        db.query(ConversationModel)
+        .filter(
+            ConversationModel.user_id == user_id,
+            ConversationModel.title == "New Chat",
+        )
+        .first()
     )
     if existing is not None:
         return existing
 
-    new_id = uuid4()
-    conv = Conversation(
-        id=new_id,
-        user_id=_DEFAULT_USER_ID,
-        title="New Chat",
-        messages=[],
-    )
-    _conversations[str(new_id)] = conv
+    conv = ConversationModel(user_id=user_id, title="New Chat")
+    db.add(conv)
+    db.commit()
+    db.refresh(conv)
     return conv
 
 
-def send_message(conversation_id: str, message: str) -> ChatResponse:
-    """
-    Append the user message, generate an assistant reply,
-    append that too, then return the assistant ChatResponse.
-    """
-    conv = _get_or_raise(conversation_id)
+def get_messages(conversation_id: str, user_id: UUID, db: Session) -> list[ChatMessage]:
+    """Return all messages for a conversation owned by this user."""
+    conv = (
+        db.query(ConversationModel)
+        .filter(
+            ConversationModel.id == conversation_id,
+            ConversationModel.user_id == user_id,
+        )
+        .first()
+    )
+    if conv is None:
+        raise ConversationNotFound(conversation_id)
 
-    user_message = ChatMessage(
-        role="user",
+    return [
+        ChatMessage(
+            role=msg.role,
+            conversation_id=msg.conversation_id,
+            content=msg.content,
+        )
+        for msg in conv.messages
+    ]
+
+
+def send_message(
+    conversation_id: str, message: str, user_id: UUID, db: Session
+) -> ChatResponse:
+    """
+    Append the user message, optionally auto-title the conversation,
+    generate an assistant reply, persist both, and return the reply.
+    """
+    conv = (
+        db.query(ConversationModel)
+        .filter(
+            ConversationModel.id == conversation_id,
+            ConversationModel.user_id == user_id,
+        )
+        .first()
+    )
+    if conv is None:
+        raise ConversationNotFound(conversation_id)
+
+    # Persist user message
+    user_msg = MessageModel(
         conversation_id=conv.id,
+        role="user",
         content=message,
     )
-    conv.messages.append(user_message)
+    db.add(user_msg)
+    db.flush()
 
-    _auto_title(conv, message)
+    # Auto-title on first message
+    _auto_title(conv, message, db)
 
+    # Generate and persist assistant reply
     reply_text = _build_reply(message)
-
-    assistant_message = ChatMessage(
-        role="assistant",
+    assistant_msg = MessageModel(
         conversation_id=conv.id,
+        role="assistant",
         content=reply_text,
     )
-    conv.messages.append(assistant_message)
+    db.add(assistant_msg)
+    db.commit()
+    db.refresh(assistant_msg)
 
     return ChatResponse(
         conversation_id=conv.id,
-        message=assistant_message,
+        message=ChatMessage(
+            role=assistant_msg.role,
+            conversation_id=assistant_msg.conversation_id,
+            content=assistant_msg.content,
+        ),
     )
 
 
-def list_conversations() -> list[Conversation]:
-    """Return all conversations (the router strips messages before sending)."""
-    return list(_conversations.values())
-
-
-def get_default_conversation_id() -> str:
-    """Return the ID of the first conversation in the store."""
-    return next(iter(_conversations))
+def list_conversations(user_id: UUID, db: Session) -> list[ConversationModel]:
+    """Return all conversations for this user, newest first."""
+    return (
+        db.query(ConversationModel)
+        .filter(ConversationModel.user_id == user_id)
+        .order_by(ConversationModel.created_at.desc())
+        .all()
+    )
