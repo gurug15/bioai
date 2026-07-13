@@ -6,6 +6,7 @@ delegates to chat_service, and returns the result.
 """
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import String
 from sqlalchemy.orm import Session
 
 from core.deps import require_access_token
@@ -81,7 +82,21 @@ async def get_all_conversations(
     current_user: User = Depends(_get_current_user),
 ):
     convs = chat_service.list_conversations(user_id=current_user.id, db=db)
+    for conv in convs:
+        print(conv.id, conv.title)
     return [
         {"id": str(c.id), "user_id": str(c.user_id), "title": c.title}
         for c in convs
     ]
+
+
+@chatRouter.delete("/conv")
+async def delete_conversation(
+    conversation_id: str,
+    db:Session = Depends(get_db),
+    current_user: User = Depends(_get_current_user)):
+    print("conv id:",conversation_id)
+    deleted_conv = chat_service.delete_conversation(user_id=current_user.id,conversation_id=conversation_id,db=db)
+
+    return {"message":"deleted conversation",
+            "conversation_id": deleted_conv.id}

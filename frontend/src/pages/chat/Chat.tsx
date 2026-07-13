@@ -15,6 +15,7 @@ export default function Chat() {
     sendMessage,
     createConversation,
     switchConversation,
+    deleteConversation,
   } = useChat(null)
 
   const [input, setInput] = useState("")
@@ -57,6 +58,7 @@ export default function Chat() {
         conversations={conversations}
         activeConversationId={activeConversationId}
         onNewChat={createConversation}
+        deleteConversation={deleteConversation}
         onSwitchConversation={switchConversation}
       />
 

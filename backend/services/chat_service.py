@@ -60,6 +60,24 @@ def create_conversation(user_id: UUID, db: Session) -> ConversationModel:
     db.refresh(conv)
     return conv
 
+def delete_conversation(user_id: UUID, conversation_id: str, db: Session) -> ConversationModel:
+    """
+    Delete an existing Chat for this user.
+    """
+    conv = (
+        db.query(ConversationModel)
+        .filter(
+            ConversationModel.user_id == user_id,
+            ConversationModel.id == conversation_id,
+        )
+        .first()
+    )
+    if conv is None or conv.title == "New Chat":
+        raise ConversationNotFound("Can't delete an empty conversation")
+    db.delete(conv)
+    db.commit()
+
+    return conv
 
 def get_messages(conversation_id: str, user_id: UUID, db: Session) -> list[ChatMessage]:
     """Return all messages for a conversation owned by this user."""

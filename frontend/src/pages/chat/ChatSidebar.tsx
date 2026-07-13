@@ -1,4 +1,4 @@
-import { Plus, MessageSquare } from "lucide-react"
+import { Plus, MessageSquare, Trash2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { UserProfileButton } from "@/components/UserProfileButton"
@@ -10,12 +10,14 @@ export function ChatSidebar({
   activeConversationId,
   onNewChat,
   onSwitchConversation,
+  deleteConversation,
 }: {
   isOpen: boolean
   conversations: Conversation[]
   activeConversationId: string | null
   onNewChat: () => void
   onSwitchConversation: (id: string) => void
+  deleteConversation: (id: string) => void
 }) {
   return (
     <div
@@ -37,19 +39,29 @@ export function ChatSidebar({
         <div className="flex flex-col gap-1 py-2">
           <p className="mb-2 px-2 text-xs font-semibold text-zinc-500">Today</p>
           {conversations.map((conv) => (
-            <Button
-              key={conv.id}
-              variant="ghost"
-              className={`w-full justify-start gap-3 truncate ${
+            <div
+              onClick={() => onSwitchConversation(conv.id)}
+              className={`flex w-full justify-between ${
                 conv.id === activeConversationId
                   ? "bg-zinc-800 text-zinc-200"
                   : "text-zinc-400 hover:bg-zinc-800"
               }`}
-              onClick={() => onSwitchConversation(conv.id)}
             >
-              <MessageSquare size={16} />
-              <span className="truncate">{conv.title}</span>
-            </Button>
+              <Button
+                key={conv.id}
+                variant="ghost"
+                className={`justify-start gap-3 truncate hover:bg-zinc-800 hover:text-zinc-200`}
+              >
+                <MessageSquare size={16} />
+                <span className="truncate">{conv.title}</span>
+              </Button>
+              {conv.id === activeConversationId && (
+                <Trash2Icon
+                  className="mt-2 mr-2 h-4 w-4 text-red-400"
+                  onClick={() => deleteConversation(conv.id)}
+                />
+              )}
+            </div>
           ))}
         </div>
       </ScrollArea>
